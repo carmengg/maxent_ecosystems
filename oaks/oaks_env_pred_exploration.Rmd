@@ -1,0 +1,31 @@
+---
+title: "oaks_env_pred_exploration"
+author: "Carmen Galaz-García"
+date: "1/21/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+librarian::shelf(
+  dismo, 
+  dplyr, 
+  DT, 
+  ggplot2, 
+  here, 
+  htmltools, 
+  leaflet, 
+  mapview, 
+  purrr, 
+  readr, 
+  rgbif, 
+  rgdal, 
+  raster,
+  rJava, 
+  sdmpredictors, 
+  sf, 
+  spocc, 
+  tidyr)
+
+```
