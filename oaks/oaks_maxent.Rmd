@@ -1,0 +1,152 @@
+---
+title: "eco_maxent_observations_preparation"
+author: "Carmen Galaz-García"
+date: "1/14/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+librarian::shelf(
+  dismo, 
+  dplyr, 
+  DT, 
+  ggplot2, 
+  here, 
+  htmltools, 
+  leaflet, 
+  mapview, 
+  purrr, 
+  readr, 
+  rgbif, 
+  rgdal, 
+  raster,
+  rJava, 
+  sdmpredictors, 
+  sf, 
+  spocc, 
+  tidyr)
+
+```
+
+```{r}
+# Sample observations data
+
+obs_num = 1000
+
+# ---- subset observations ----
+obs_subset <- dismo::randomPoints(subset, obs_num) %>% 
+    as_tibble() %>% 
+    st_as_sf(coords = c("x", "y"), crs = crs(subset))
+rm(obs_num)
+#mapview::mapview(obs_subset, map.types = "Stamen.Terrain")
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# make convex hull around observation points
+obs_hull <- sf::st_convex_hull(st_union(obs_subset)) %>% sf::as_Spatial()
+obs_hull <- spTransform(obs_hull, crs(env_stack))
+#mapview(list(obs_subset, obs_hull))
+
+```
+
+# Preparing Predictor Layers
+
+```{r}
+# ------ auxiliary sets and functions ------------
+
+# Santa Barbara shapefile
+sb <- readOGR(here("maxent_eco_classification",
+                   "sb_shapefile",
+                   "SB_only.shp"))
+
+# ------------------------------------------------------------
+
+# shape needs to be opened via readOGR() in library(rgdal) 
+crop_shape <- function(ref_raster , shape){
+  new_shape <- spTransform(shape, crs(ref_raster))
+  return(mask(crop(x= ref_raster, y=st_bbox(new_shape)),new_shape))
+}
+
+```
+
+
+
+
+
+
+```{r}
+# SELECTED LAYERS
+
+elev <- projectRaster(from = elev, to= arid, method='bilinear')
+meantemp <- projectRaster(from = meantemp, to= arid, method='bilinear')
+
+env_pred <- stack(elev, arid, meantemp)
+names(env_pred) <- c("elevation","aridity","mean_temp")
+
+plot(env_pred)
+```
+
+
+```{r}
+# Save stack
+
+# path for env variables masked raster stack 
+env_stack_grd <- file.path(here(), 
+                           "maxent_eco_classification",
+                           "predict_rasters",
+                           "stack",
+                           "sb_env_stack.grd")
+
+if (!file.exists(env_stack_grd)){
+  writeRaster(env_pred, env_stack_grd, overwrite=T)  
+}
+rm(env_stack_grd)
+```
+
+
+# Oak Woodlands sample points
+
+```{r}
+#obs <- sf::read_sf(here("maxent_eco_classification","oak_samples","oaks_sample.geojson"))
+obs <- sf::read_sf(here("maxent_eco_classification","oak_samples","oaks_sample_1k.geojson"))
+
+pts_split  <- rsample::initial_split(obs, prop = 0.8)
+pts_train  <- rsample::training(pts_split)
+pts_test   <- rsample::testing(pts_split)
+rm(pts_split)
+
+```
+
+
+```{r}
+
+match_obs <- st_transform(pts_train,crs(env_pred))
+
+#plot(env_pred[[1]])
+#plot(match_obs,add=TRUE)
+
+maxent_model <- maxent(env_pred, sf::as_Spatial(match_obs))
+
+y_maxv <- predict(env_pred, maxent_model) #, ext=ext, progress='')
+plot(y_maxv, main='Maxent, raw prediction')
+
+```
+
+```{r}
+pts_test_p <- pts_test %>% 
+  as_Spatial()
+
+p_true <- na.omit(raster::extract(y_maxv, pts_test_p) >= 0.6)
+tpr <- sum(p_true)/length(p_true)
+fnr <- sum(!p_true)/length(p_true)
+
+
+matrix(
+  c(tpr, fnr,
+    "fpr", "tnr"), 
+  nrow=2, dimnames = list(
+    c("present_obs", "absent_obs"),
+    c("present_pred", "absent_pred")))
+```
+
