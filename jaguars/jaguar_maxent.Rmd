@@ -8,12 +8,11 @@ output: html_document
 ```{r setup, include=FALSE}
 # ------------ load packages ------------ 
 librarian::shelf(
-  dismo, # species distribution modeling: maxent(), predict(), evaluate(), 
+  dismo, # species distribution modeling: maxent(), predict(), evaluate(),
   dplyr, ggplot2, GGally, here, maptools, readr, 
   raster, readr, rsample, sf,
   usdm)  # uncertainty analysis for species distribution models: vifcor()
 select = dplyr::select
-
 
 # ------------ options ------------ 
 set.seed(42)
@@ -24,7 +23,7 @@ ggplot2::theme_set(ggplot2::theme_light())
 
 
 # ------------ common data path ------------ 
-dir_data <- here("data/sdm")
+dir_data <- here("jaguars/jaguars_data")
 
 # ----------- read observations + absences ----------
 # presence (1) and absence (0)
@@ -57,14 +56,12 @@ pts_train_a <- pts_train %>%
   as_Spatial()    # maxent prefers sp::SpatialPoints over newer sf::sf class
 ```
 
-## Calibrate: Model Selection
+## Calibrate: Covariates Selection
 
 ```{r, warnings = FALSE}
 # show pairs plot before multicollinearity reduction with vifcor()
 pairs(env_stack)
 ```
-
-
 
 
 ```{r}
@@ -105,14 +102,17 @@ maxent()
 
 
 ```{r}
+save_model <- FALSE
+
 # fit a maximum entropy model
-mdl_maxv_rds  <- file.path(dir_data, "mdl_maxent_vif.rds")
-                           
-if (!file.exists(mdl_maxv_rds)){
-  mdl_maxv <- maxent(env_stack_v, sf::as_Spatial(pts_train))
+mdl_maxv <- maxent(env_stack_v, sf::as_Spatial(pts_train))  
+
+if (save_model){
+  mdl_maxv_rds  <- file.path(dir_data, "maxent_model_jaguars.rds")  
   readr::write_rds(mdl_maxv, mdl_maxv_rds)
+  mdl_maxv <- read_rds(mdl_maxv_rds)
+  rm(mdl_maxv_rds)
 }
-mdl_maxv <- read_rds(mdl_maxv_rds)
 
 # plot variable contributions per predictor
 plot(mdl_maxv)
@@ -183,19 +183,4 @@ matrix(
 
 ```
 
-```{r}
-# add point to ROC plot
-points(fpr, tpr, pch=23, bg="blue")
-```
-
-### Presence only
-
-```{r}
-mdl_presence <- maxent(env_stack_v, pts_train_p)
-```
-
-```{r}
-response(mdl_presence)
-response(mdl_maxv)
-```
 
