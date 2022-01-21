@@ -27,5 +27,109 @@ librarian::shelf(
   sf, 
   spocc, 
   tidyr)
+```
+
+```{r}
+# ------ auxiliary sets and functions ------------
+
+# Santa Barbara shapefile
+sb <- readOGR(here("oaks",
+                   "sb_shapefile",
+                   "SB_only.shp"))
+
+# ------------------------------------------------------------
+
+# shape needs to be opened via readOGR() in library(rgdal) 
+crop_shape <- function(ref_raster , shape){
+  new_shape <- spTransform(shape, crs(ref_raster))
+  return(mask(crop(x= ref_raster, y=st_bbox(new_shape)),new_shape))
+}
+
+```
+
+## Round 1: Species Distribution Modeling Predictor Datasets (SDMP)
+
+```{r}
+# ----- EXPLORE AVAILABLE LAYERS -----
+# To see how to explore the different datasets available through sdmp see jaguar_prepare_data.Rmd
+
+# choose layers after some inspection and perhaps consulting literature
+env_layers_vec <- c("WC_alt", # altitude
+                    "WC_bio1", # Annual mean temperature
+                    "WC_bio2", # Mean diurnal temperature range
+                    "WC_bio13", # Precipitation of wettest month
+                    "WC_bio14", # Precipitation of driest month
+                    "WC_bio15", # Precipitation seasonality
+                    #"ER_aridityIndexThornthwaite", #T hornthwaite aridity index
+                    "ER_tri", # Terrain roughness index
+                    "ER_topoWet") # Topographic wetness
+
+# get layers
+env_stack <- load_layers(env_layers_vec)
+rm(env_layers_vec)
+
+# interactive plot layers, hiding all but first (select others)
+# mapview(env_stack, hide = T) # makes the html too big for Github
+plot(env_stack, nc=2)
+```
+### SDMP masking
+```{r}
+# -----------------------------------------------------------------------------
+# MASK ENV VARIABLES STACK 
+save_env_stack <- FALSE
+
+env_stack_sdmp <- crop_shape(env_stack,sb)
+
+if (save_env_stack){
+  env_stack_grd <- file.path(data_dir, "sdmp_env_stack.grd")
+  writeRaster(env_stack_sdmp, env_stack_grd, overwrite=T)  
+  env_stack <- stack(env_stack_grd)
+  rm(env_stack_grd)
+}
+rm(save_env_stack)
+
+plot(env_stack_sdmp, nc=2)
+```
+
+## Round 2: Google Earth Engine datasets
+
+```{r}
+# https://developers.google.com/earth-engine/datasets/catalog/USGS_3DEP_10m
+
+raw_elevation <- raster(here("oaks/env_layers/GEE/ca_elevation.tif"))
+# 30m ? resolution
+elev <- crop_shape(raw_elevation, sb)
+rm(raw_elevation)
+
+# ----------------------------------------------------------------------
+# https://developers.google.com/earth-engine/datasets/catalog/WORLDCLIM_V1_BIO
+
+raw_meantemp <- raster(here("oaks/env_layers/GEE/ca_mean_temp.tif"))
+# 30 m ? resolution
+meantemp <- crop_shape(raw_meantemp, sb)
+rm(raw_meantemp)
+
+# ----------------------------------------------------------------------
+plot(elev, main="Elevation")
+plot(meantemp, main="Mean Annual Temp")
+
+```
+
+
+```{r}
+# ----------------------------------------------------------------------
+# Aridity Index (2017), the one used in TNC ecosystem map
+raw_arid <- raster(here("oaks","env_layers","ca_aridity_index.tif"))
+arid <- crop_shape(raw_arid, sb)
+rm(raw_arid)
+# ----------------------------------------------------------------------
+# Climate layer created from WorldClim data (30 yr average)
+raw_clim <- raster(here("oaks","env_layers","ca_clim_2019.tif"))
+clim <- crop_shape(raw_clim, sb)
+rm(raw_clim)
+
+# ----------------------------------------------------------------------
+plot(clim, main="Climate")
+plot(arid, main="Aridity Index")
 
 ```
