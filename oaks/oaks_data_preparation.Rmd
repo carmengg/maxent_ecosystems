@@ -1,0 +1,289 @@
+---
+title: "eco_maxent_observations_preparation"
+author: "Carmen Galaz-García"
+date: "1/14/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+librarian::shelf(
+  dismo, 
+  dplyr, 
+  DT, 
+  ggplot2, 
+  here, 
+  htmltools, 
+  leaflet, 
+  mapview, 
+  purrr, 
+  readr, 
+  rgbif, 
+  rgdal, 
+  raster,
+  rJava, 
+  sdmpredictors, 
+  sf, 
+  spocc, 
+  tidyr)
+
+```
+
+
+```{r}
+# https://databasin.org/datasets/6693af651946425c8633551df0457526/
+sedveg <- raster(here("maxent_eco_classification", 
+                      "data", 
+                      "commondata",
+                      "raster_data", 
+                      "sedgveg17_CA.tif"))
+#plot(sedveg)
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# select a subset from sedveg
+n <- 3 
+subset <- sedveg == n
+subset[subset == 0] <- NA
+plot(subset)
+rm(n,sedveg)
+```
+
+```{r}
+# Sample observations data
+
+obs_num = 1000
+
+# ---- subset observations ----
+obs_subset <- dismo::randomPoints(subset, obs_num) %>% 
+    as_tibble() %>% 
+    st_as_sf(coords = c("x", "y"), crs = crs(subset))
+rm(obs_num)
+#mapview::mapview(obs_subset, map.types = "Stamen.Terrain")
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# make convex hull around observation points
+obs_hull <- sf::st_convex_hull(st_union(obs_subset)) %>% sf::as_Spatial()
+obs_hull <- spTransform(obs_hull, crs(env_stack))
+#mapview(list(obs_subset, obs_hull))
+
+```
+
+# Preparing Predictor Layers
+
+```{r}
+# ------ auxiliary sets and functions ------------
+
+# Santa Barbara shapefile
+sb <- readOGR(here("maxent_eco_classification",
+                   "sb_shapefile",
+                   "SB_only.shp"))
+
+# ------------------------------------------------------------
+
+# shape needs to be opened via readOGR() in library(rgdal) 
+crop_shape <- function(ref_raster , shape){
+  new_shape <- spTransform(shape, crs(ref_raster))
+  return(mask(crop(x= ref_raster, y=st_bbox(new_shape)),new_shape))
+}
+
+```
+
+
+## Round 1: SDMP Predictors layers
+Do not have adequate resolution
+
+```{r}
+# ----- EXPLORE AVAILABLE LAYERS -----
+
+# ---- access datasets ---
+# choosing terrestrial
+# env_datasets <- sdmpredictors::list_datasets(terrestrial = TRUE, marine = FALSE)
+
+# show table of datasets
+# env_datasets %>% 
+#   select(dataset_code, description, citation) %>% 
+#   DT::datatable()
+
+# get layers
+# env_layers <- sdmpredictors::list_layers(c("WorldClim", "ENVIREM"))
+# DT::datatable(env_layers)
+# rm(env_datasets)
+```
+
+```{r}
+
+# choose layers after some inspection and perhaps consulting literature
+# env_layers_vec <- c("WC_alt", # altitude
+#                     "WC_bio1", # Annual mean temperature
+#                     "WC_bio2", # Mean diurnal temperature range
+#                     "WC_bio13", # Precipitation of wettest month
+#                     "WC_bio14", # Precipitation of driest month
+#                     "WC_bio15", # Precipitation seasonality
+#                     #"ER_aridityIndexThornthwaite", #T hornthwaite aridity index
+#                     "ER_tri", # Terrain roughness index
+#                     "ER_topoWet") # Topographic wetness
+# 
+# # get layers
+# env_stack <- sdmpredictors::load_layers(env_layers_vec)
+# rm(env_layers_vec)
+# plot(env_stack, nc=2) 
+# 
+# #env_stack <- raster::mask(env_stack, obs_hull) %>% 
+# #  raster::crop(extent(obs_hull))
+```
+
+
+```{r}
+# --------- CHECKING DATASETS OVER AOI ------------
+
+# crop_env_stack <- crop_shape(env_stack,sb)
+# plot(crop_env_stack, nc=2) 
+# plot(sb,add=TRUE)
+# 
+# # ----------------------------------------------------------------------
+# 
+# crop2_env_stack <- crop_shape(env_stack,obs_hull)
+# plot(crop2_env_stack, nc=2)
+# plot(obs_hull,add=TRUE)
+```
+
+
+## Round 2: Loading mean annual temp, elevation and aridity index data from GEE
+
+
+```{r}
+cropto <- sb # sb or obs_hull
+# ----------------------------------------------------------------------
+# Aridity Index (2017), the one used in TNC ecosystem map
+raw_arid <- raster(here("maxent_eco_classification",
+                    "predict_rasters",
+                    "ca_aridity_index.tif"))
+arid <- crop_shape(raw_arid, cropto)
+rm(raw_arid)
+# ----------------------------------------------------------------------
+# 
+raw_clim <- raster(here("maxent_eco_classification",
+                    "predict_rasters",
+                    "ca_clim_2019.tif"))
+clim <- crop_shape(raw_clim, cropto)
+rm(raw_clim)
+# ----------------------------------------------------------------------
+# From landform categorical classification
+raw_landforms <- raster(here("maxent_eco_classification",
+                    "predict_rasters",
+                    "ca_landforms_match.tif"))
+landf <- crop_shape(raw_landforms, cropto)
+rm(raw_landforms)
+# ----------------------------------------------------------------------
+# https://developers.google.com/earth-engine/datasets/catalog/USGS_3DEP_10m
+
+raw_elevation <- raster(here("maxent_eco_classification",
+                    "predict_rasters",
+                    "ca_elevation.tif"))
+# 1km resolution
+elev <- crop_shape(raw_elevation, cropto)
+rm(raw_elevation)
+
+# ----------------------------------------------------------------------
+# https://developers.google.com/earth-engine/datasets/catalog/WORLDCLIM_V1_BIO
+
+raw_meantemp <- raster(here("maxent_eco_classification",
+                    "predict_rasters",
+                    "ca_mean_temp.tif"))
+# 1km resolution
+meantemp <- crop_shape(raw_meantemp, cropto)
+rm(raw_meantemp)
+
+# ----------------------------------------------------------------------
+plot(landf, main="Landforms")
+plot(clim, main="Climate")
+plot(arid, main="Aridity Index")
+plot(elev, main="Elevation")
+plot(meantemp, main="Mean Annual Temp")
+
+```
+
+```{r}
+# SELECTED LAYERS
+
+elev <- projectRaster(from = elev, to= arid, method='bilinear')
+meantemp <- projectRaster(from = meantemp, to= arid, method='bilinear')
+
+env_pred <- stack(elev, arid, meantemp)
+names(env_pred) <- c("elevation","aridity","mean_temp")
+
+plot(env_pred)
+```
+
+
+```{r}
+high_res_env_pred <- stack(arid,elev,meantemp)
+high_res_env_pred <- projectRaster(from=high_res_env_pred,to=sedveg)
+names(high_res_env_pred) <- c("aridity","elevation","mean_temp")
+plot(high_res_env_pred)
+```
+
+
+```{r}
+# Save stack
+
+# path for env variables masked raster stack 
+env_stack_grd <- file.path(here(), 
+                           "maxent_eco_classification",
+                           "predict_rasters",
+                           "stack",
+                           "sb_env_stack.grd")
+
+if (!file.exists(env_stack_grd)){
+  writeRaster(env_pred, env_stack_grd, overwrite=T)  
+}
+rm(env_stack_grd)
+```
+
+
+# Oak Woodlands sample points
+
+```{r}
+#obs <- sf::read_sf(here("maxent_eco_classification","oak_samples","oaks_sample.geojson"))
+obs <- sf::read_sf(here("maxent_eco_classification","oak_samples","oaks_sample_1k.geojson"))
+
+pts_split  <- rsample::initial_split(obs, prop = 0.8)
+pts_train  <- rsample::training(pts_split)
+pts_test   <- rsample::testing(pts_split)
+rm(pts_split)
+
+```
+
+
+```{r}
+
+match_obs <- st_transform(pts_train,crs(env_pred))
+
+#plot(env_pred[[1]])
+#plot(match_obs,add=TRUE)
+
+maxent_model <- maxent(env_pred, sf::as_Spatial(match_obs))
+
+y_maxv <- predict(env_pred, maxent_model) #, ext=ext, progress='')
+plot(y_maxv, main='Maxent, raw prediction')
+
+```
+
+```{r}
+pts_test_p <- pts_test %>% 
+  as_Spatial()
+
+p_true <- na.omit(raster::extract(y_maxv, pts_test_p) >= 0.6)
+tpr <- sum(p_true)/length(p_true)
+fnr <- sum(!p_true)/length(p_true)
+
+
+matrix(
+  c(tpr, fnr,
+    "fpr", "tnr"), 
+  nrow=2, dimnames = list(
+    c("present_obs", "absent_obs"),
+    c("present_pred", "absent_pred")))
+```
+
