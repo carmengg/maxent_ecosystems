@@ -4,3 +4,5 @@
 .Ruserdata
 /jaguars/jaguars_data
 .DS_Store
+/oaks/env_layers
+/oaks/sb_shapefile
