@@ -1,0 +1,78 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+library(raster)
+library(rgdal)
+library(sf)
+library(here)
+```
+
+# Getting oak regions in SB
+
+```{r}
+sb <- readOGR(here("shapefiles","sb-county-boundary","data","commondata","county_boundaries","SB_only.shp"))
+
+oaks <- readOGR(here("maxent",
+                   "data",
+                   "commondata",
+                   "cal_veg",
+                   "Oak_woodlands_diss.shp"))
+```
+
+```{r}
+compare_CRS(crs(sb),crs(oaks))
+```
+
+```{r}
+sb_oaks <- rgeos::gIntersection(oaks,sb). # esta es la buena (creo?)
+sb_oaks <-raster::crop(x= oaks, y=sb)
+sb_oaks <- st_crop(st_as_sf(oaks),st_as_sf(sb))
+```
+
+
+
+```{r}
+shapefile(sb_oaks,here("maxent","sb_oaks.shp")) # write shapefile
+
+plot(sb_oaks)
+plot(sb,add=TRUE)
+```
+
+```{r}
+sb_oaks <- readOGR(here("maxent","sb_oaks.shp"))
+plot(sb_oaks)
+```
+
+
+# Sample presence points
+
+```{r}
+sample <- spsample(sb_oaks,n=1000,"random")
+#mapview::mapview(sb, map.types = "Stamen.Terrain")
+```
+
+```{r}
+sf_sample <- st_as_sf(sample)
+sf::write_sf(sf_sample, here("maxent","oaks_sample_1k.geojson"))
+
+plot(sf_sample)
+plot(sb,add=TRUE)
+
+```
+
+## Creating absence points
+
+```{r}
+sb_no_oaks <- gDifference(sb,sb_oaks)
+plot(sb_no_oaks)
+shapefile(sb_oaks,here("maxent","sb_no_oaks.shp"))
+```
+
+```{r}
+no_oaks <- sb - sb_oaks
+```
+
