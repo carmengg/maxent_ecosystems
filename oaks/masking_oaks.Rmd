@@ -1,0 +1,51 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+library(raster)
+library(rgdal)
+library(sf)
+library(here)
+```
+
+# Getting oak regions in SB
+
+```{r}
+sb <- readOGR(here("oaks","sb_shapefile","SB_only.shp"))
+
+oaks <- readOGR(here("oaks",
+                     "oaks_data",
+                   "CWHR Habitat Type - Oak Woodland, Southern and Central Coast Zones",
+                   "commondata",
+                   "cal_veg",
+                   "Oak_woodlands_diss.shp"))
+```
+
+```{r}
+compare_CRS(crs(sb),crs(oaks))
+```
+
+```{r}
+sb_oaks <- rgeos::gIntersection(oaks,sb). # esta es la buena (creo?)
+sb_oaks <-raster::crop(x= oaks, y=sb)
+sb_oaks <- st_crop(st_as_sf(oaks),st_as_sf(sb))
+```
+
+
+
+```{r}
+shapefile(sb_oaks,here("maxent","sb_oaks.shp")) # write shapefile
+
+plot(sb_oaks)
+plot(sb,add=TRUE)
+```
+
+```{r}
+sb_oaks <- readOGR(here("maxent","sb_oaks.shp"))
+plot(sb_oaks)
+```
+
+
