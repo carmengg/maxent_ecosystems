@@ -30,7 +30,7 @@ sample <- spsample(sb_oaks,n=1000,"random")
 
 ```{r}
 sf_sample <- st_as_sf(sample)
-sf::write_sf(sf_sample, here("maxent_ecosystems","oaks","oaks_data","oaks_sample.geojson"))
+sf::write_sf(sf_sample, here("oaks","oaks_data","oaks_sample.geojson"))
 
 plot(sf_sample)
 plot(sb,add=TRUE)
@@ -81,4 +81,9 @@ plot(absences)
 ```
 
 
+```{r}
+sf_absences <- st_as_sf(absences)
+sf::write_sf(sf_absences, here("oaks","oaks_data","oaks_absences.geojson"))
+
+```
 
