@@ -110,9 +110,22 @@ meantemp <- crop_shape(raw_meantemp, sb)
 rm(raw_meantemp)
 
 # ----------------------------------------------------------------------
+raw_temp_season <-raster(here("oaks/env_layers/GEE/sb_tempseason.tif"))
+temp_season <- crop_shape(raw_temp_season, sb)
+rm(raw_temp_season)
+# ----------------------------------------------------------------------
 plot(elev, main="Elevation")
 plot(meantemp, main="Mean Annual Temp")
+plot(temp_season, main="Temperature Seasonality")
 
+```
+
+
+```{r}
+folder <- here("oaks","env_layers","sb_env_layers")
+raster::writeRaster(temp_season, file.path(folder,"sb_temp_seasonality.tif"))
+raster::writeRaster(elev, file.path(folder,"sb_elevation.tif"))
+raster::writeRaster(meantemp, file.path(folder,"sb_meantemp.tif"))
 ```
 
 
@@ -131,5 +144,4 @@ rm(raw_clim)
 # ----------------------------------------------------------------------
 plot(clim, main="Climate")
 plot(arid, main="Aridity Index")
-
 ```
