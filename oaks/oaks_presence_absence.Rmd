@@ -39,13 +39,46 @@ plot(sb,add=TRUE)
 
 ## Sample absence points
 
+### Attempt 1
 ```{r}
 sb_no_oaks <- gDifference(sb,sb_oaks)
 plot(sb_no_oaks)
 shapefile(sb_oaks,here("maxent","sb_no_oaks.shp"))
 ```
 
+### Attempt 3
 ```{r}
 no_oaks <- sb - sb_oaks
 ```
+
+### Attempt 4
+```{r}
+tempseason <- raster(here("oaks","env_layers","sb_env_layers","sb_temp_seasonality.tif"))
+plot(tempseason)
+
+oaks_transf <- spTransform(sb_oaks,crs(tempseason))
+plot(oaks_transf)
+```
+
+```{r}
+oaks_raster <- rasterize(oaks_transf,tempseason,)
+plot(oaks_raster)
+plot(sb,add=TRUE)
+raster::writeRaster(oaks_raster,here("oaks","oaks_data","sb_oakwoodland.tif"))
+```
+
+```{r}
+oaks_raster <- oaks_raster * 1000
+trial <- mask(tempseason,oaks_raster,inverse=TRUE)
+
+plot(oaks_raster)
+plot(trial)
+```
+
+```{r}
+absences <- sampleRandom(trial,size=1000,na.rm=TRUE,sp=TRUE)
+plot(absences)
+```
+
+
 
