@@ -5,3 +5,102 @@ date: "1/25/2022"
 output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(21)
+librarian::shelf(
+  here, 
+  raster,
+  rgdal, 
+  sf,
+  dismo,
+  usdm)  # uncertainty analysis for species distribution models: vifcor()
+  
+
+```
+
+
+# Load Predictor Layers
+
+```{r}
+env_stack <- raster::stack(here("oaks","env_layers","sb_env_stack.grd"))
+env_stack <- dropLayer(env_stack,"driest_month")
+plot(env_stack)
+```
+
+## Calibrate: Covariates Selection
+
+```{r, warnings = FALSE}
+# show pairs plot before multicollinearity reduction with vifcor()
+pairs(env_stack)
+```
+
+
+```{r}
+# calculate variance inflation factor per predictor, a metric of multicollinearity between variables
+vif(env_stack)
+
+# WC_alt =  altitude
+# WC_bio1 = Annual mean temperature
+# WC_bio2 = Mean diurnal temperature range
+# WC_bio13 = Precipitation of wettest month
+# WC_bio14 = Precipitation of driest month
+# WC_bio15 = Precipitation seasonality
+# ER_aridityIndexThornthwaite Thornthwaite aridity index
+# ER_tri = Terrain roughness index
+# ER_topoWet = Topographic wetness
+```
+
+```{r}
+# stepwise reduce predictors, based on a max correlation of 0.7 (max 1)
+v <- vifcor(env_stack, th=0.7) 
+v
+```
+
+```{r}
+# remove variables from environmental raster stack
+env_stack_v <- usdm::exclude(env_stack, v)
+
+# show pairs plot after multicollinearity reduction with vifcor()
+pairs(env_stack_v)
+```
+
+
+```{r}
+mdl_maxv <-  maxent(env_stack_v, 
+                       p = sf::as_Spatial(p_pts_train),
+                       a = sf::as_Spatial(a_pts_train))
+
+plot(mdl_maxv)
+```
+
+```{r}
+y_maxv_reduced <- predict(env_stack_v, mdl_maxv) #, ext=ext, progress='')
+plot(y_maxv_reduced, main='Maxent, raw prediction (reduced variables)')
+
+```
+
+
+```{r}
+thresh <- 0.6
+
+p_true <- na.omit(raster::extract(y_maxv_reduced, p_pts_test) >= thresh)
+tpr <- sum(p_true)/length(p_true)  # % true positive
+fnr <- sum(!p_true)/length(p_true) # % false negative 
+
+a_true <- na.omit(raster::extract(y_maxv_reduced, a_pts_test) < thresh)
+fpr <- sum(!a_true)/length(a_true) # % false negative
+tnr <- sum(a_true)/length(a_true) # % true negative
+
+
+
+matrix(
+  c(tpr, fpr,
+    fnr, tnr), 
+  nrow=2, 
+  byrow= TRUE, 
+  dimnames = list(
+    c("present_obs", "absent_obs"),
+    c("present_pred", "absent_pred")))
+```
+
