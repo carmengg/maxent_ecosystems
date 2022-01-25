@@ -1,0 +1,25 @@
+[general]
+creator=R package 'raster'
+created=2022-01-25 11:06:10
+[georeference]
+nrows=198
+ncols=198
+xmin=-120.674999999667
+ymin=33.4666666666336
+xmax=-119.024999999667
+ymax=35.1166666665756
+projection=+proj=longlat +datum=WGS84 +no_defs
+[data]
+datatype=FLT4S
+byteorder=little
+nbands=9
+bandorder=BIL
+minvalue=0.789024829864502:1674:1624:75.8667867948944:25:142:234:0:54
+maxvalue=1919.04485400424:4866:5712:160:135:223:891:3:166
+nodatavalue=-3.4e+38
+[legend]
+legendtype=
+values=
+color=
+[description]
+layername=elevation:aridity:temp_seasonality:mean_temp:coldest_month:warmest_month:annual_precipitation:driest_month:wettest_month

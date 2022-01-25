@@ -4,6 +4,8 @@
 .Ruserdata
 /jaguars/jaguars_data
 .DS_Store
-/oaks/env_layers
+/oaks/env_layers/sb_env_layers
+/oaks/env_layers/GEE
+/oaks/env_layers/ca_*
 /oaks/sb_shapefile
 /oaks/oaks_data/CWHR Habitat Type - Oak Woodland, Southern and Central Coast Zones
