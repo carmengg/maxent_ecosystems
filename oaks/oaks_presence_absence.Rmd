@@ -9,11 +9,15 @@ library(raster)
 library(rgdal)
 library(sf)
 library(here)
+library(tidyverse)
 ```
 
 # Getting oak regions in SB
 
 ```{r}
+# original data in: 
+# https://databasin.org/datasets/5c323b2960ba4f08895fff80e02e5a72/
+
 sb <- readOGR(here("oaks","sb_shapefile","SB_only.shp"))
 sb_oaks <- readOGR(here("oaks","oaks_data","sb_oak_woodland","sb_oaks.shp"))
 
@@ -82,7 +86,8 @@ plot(absences)
 
 
 ```{r}
-sf_absences <- st_as_sf(absences)
+sf_absences <- st_as_sf(absences) %>% 
+  select(geometry)
 sf::write_sf(sf_absences, here("oaks","oaks_data","oaks_absences.geojson"))
 
 ```
