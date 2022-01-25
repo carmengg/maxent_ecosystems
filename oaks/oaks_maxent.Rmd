@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-
+set.seed(21)
 librarian::shelf(
   here, 
   raster,
@@ -17,14 +17,12 @@ librarian::shelf(
 
 ```
 
-
 # Load Predictor Layers
 
 ```{r}
 env_stack <- raster::stack(here("oaks","env_layers","sb_env_stack.grd"))
 plot(env_stack)
 ```
-
 
 # Load oak woodlands presence points
 
@@ -63,14 +61,36 @@ rm(a_pts_split)
 maxent_model <- maxent(env_stack, 
                        p = sf::as_Spatial(p_pts_train),
                        a = sf::as_Spatial(a_pts_train))
+plot(maxent_model)
+```
 
+```{r}
 y_maxv <- predict(env_stack, maxent_model) #, ext=ext, progress='')
-plot(y_maxv, main='Maxent, raw prediction')
+plot(y_maxv, main='Maxent prediction')
 
 ```
 
 ```{r}
-thresh <- 0.6
+
+e <- dismo::evaluate(
+  p     = p_pts_test,
+  a     = a_pts_test, 
+  model = maxent_model,
+  x     = env_stack)
+e
+```
+
+```{r}
+plot(e, 'ROC')
+
+thr <- threshold(e)[['spec_sens']]
+# the threshold at which the sum of the sensitivity (true positive rate) and specificity (true negative rate) is highest
+thr
+```
+
+
+```{r}
+thresh <- thr
 
 p_true <- na.omit(raster::extract(y_maxv, p_pts_test) >= thresh)
 tpr <- sum(p_true)/length(p_true)  # % true positive
