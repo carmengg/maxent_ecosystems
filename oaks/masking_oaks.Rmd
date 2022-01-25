@@ -16,6 +16,9 @@ library(here)
 ```{r}
 sb <- readOGR(here("oaks","sb_shapefile","SB_only.shp"))
 
+# original data in: 
+# https://databasin.org/datasets/5c323b2960ba4f08895fff80e02e5a72/
+
 oaks <- readOGR(here("oaks",
                      "oaks_data",
                    "CWHR Habitat Type - Oak Woodland, Southern and Central Coast Zones",
