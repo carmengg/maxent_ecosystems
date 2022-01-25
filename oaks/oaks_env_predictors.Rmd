@@ -9,23 +9,11 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 
 librarian::shelf(
-  dismo, 
-  dplyr, 
-  DT, 
-  ggplot2, 
   here, 
-  htmltools, 
-  leaflet, 
-  mapview, 
-  purrr, 
-  readr, 
-  rgbif, 
   rgdal, 
   raster,
-  rJava, 
   sdmpredictors, 
   sf, 
-  spocc, 
   tidyr)
 ```
 
@@ -94,30 +82,62 @@ plot(env_stack_sdmp, nc=2)
 ## Round 2: Google Earth Engine datasets
 
 ```{r}
+# +++++++++++++++  ELEVATION  +++++++++++++++++
 # https://developers.google.com/earth-engine/datasets/catalog/USGS_3DEP_10m
-
+# ----------------------------------------------------------------------
 raw_elevation <- raster(here("oaks/env_layers/GEE/ca_elevation.tif"))
 # 30m ? resolution
 elev <- crop_shape(raw_elevation, sb)
 rm(raw_elevation)
 
-# ----------------------------------------------------------------------
+# +++++++++++++++  TEMPERATURE  +++++++++++++++++
 # https://developers.google.com/earth-engine/datasets/catalog/WORLDCLIM_V1_BIO
-
-raw_meantemp <- raster(here("oaks/env_layers/GEE/ca_mean_temp.tif"))
-# 30 m ? resolution
-meantemp <- crop_shape(raw_meantemp, sb)
-rm(raw_meantemp)
-
 # ----------------------------------------------------------------------
 raw_temp_season <-raster(here("oaks/env_layers/GEE/sb_tempseason.tif"))
 temp_season <- crop_shape(raw_temp_season, sb)
 rm(raw_temp_season)
 # ----------------------------------------------------------------------
-plot(elev, main="Elevation")
-plot(meantemp, main="Mean Annual Temp")
-plot(temp_season, main="Temperature Seasonality")
+raw_meantemp <- raster(here("oaks/env_layers/GEE/ca_mean_temp.tif"))
+# 100 m resolution
+meantemp <- crop_shape(raw_meantemp, sb)
+rm(raw_meantemp)
+# ----------------------------------------------------------------------
+raw_mean_coldest <-raster(here("oaks/env_layers/GEE/sb_mean_coldest.tif"))
+mean_coldest <- crop_shape(raw_mean_coldest, sb)
+rm(raw_mean_coldest)
+# ----------------------------------------------------------------------
+raw_mean_warmest <-raster(here("oaks/env_layers/GEE/sb_mean_warmest.tif"))
+mean_warmest <- crop_shape(raw_mean_warmest, sb)
+rm(raw_mean_warmest)
 
+# +++++++++++++++  PRECIPITATION +++++++++++++++++
+# https://developers.google.com/earth-engine/datasets/catalog/WORLDCLIM_V1_BIO
+# ----------------------------------------------------------------------
+raw_annual_precip <-raster(here("oaks/env_layers/GEE/sb_annual_precip.tif"))
+annual_precip <- crop_shape(raw_annual_precip, sb)
+rm(raw_annual_precip)
+# ----------------------------------------------------------------------
+raw_wettest_month <-raster(here("oaks/env_layers/GEE/sb_wettest_month.tif"))
+wettest_month <- crop_shape(raw_wettest_month, sb)
+rm(raw_wettest_month)
+# ----------------------------------------------------------------------
+raw_driest_month <-raster(here("oaks/env_layers/GEE/sb_driest_month.tif"))
+driest_month <- crop_shape(raw_driest_month, sb)
+rm(raw_driest_month)
+# ----------------------------------------------------------------------
+```
+
+```{r}
+plot(elev, main="Elevation")
+# --------------------------------------------------
+plot(temp_season, main="Temperature Seasonality")
+plot(meantemp, main="Mean Annual Temp")
+plot(mean_coldest, main="Mean temperature of coldest month")
+plot(mean_warmest, main="Mean temperature of warmest month")
+# --------------------------------------------------
+plot(annual_precip, main="Annual Precipitation")
+plot(driest_month, main="Precipitation of driest month")
+plot(wettest_month, main="Precipitation of wettest month")
 ```
 
 
@@ -153,11 +173,24 @@ plot(arid, main="Aridity Index")
 # SELECTED LAYERS
 
 elev <- projectRaster(from = elev, to= arid, method='bilinear')
-meantemp <- projectRaster(from = meantemp, to= arid, method='bilinear')
-temp_season <- projectRaster(from=temp_season, to=arid, method="bilinear")
 
-env_pred <- stack(elev, arid, meantemp, temp_season)
-names(env_pred) <- c("elevation","aridity","mean_temp","temp_seasonality")
+temp_season <- projectRaster(from=temp_season, to=arid, method="bilinear")
+meantemp <- projectRaster(from = meantemp, to= arid, method='bilinear')
+mean_coldest <- projectRaster(from = mean_coldest, to= arid, method='bilinear')
+mean_warmest <- projectRaster(from = mean_warmest, to= arid, method='bilinear')
+
+annual_precip <- projectRaster(from = annual_precip, to=arid, method = "bilinear")
+driest_month <- projectRaster(from= driest_month, to=arid, method="bilinear")
+wettest_month <- projectRaster(from=wettest_month, to=arid, method = "bilinear")
+
+
+env_pred <- stack(elev, 
+                  arid, 
+                  temp_season, meantemp, mean_coldest, mean_warmest,
+                  annual_precip, driest_month, wettest_month)
+names(env_pred) <- c("elevation","aridity",
+                     "temp_seasonality","mean_temp","coldest_month","warmest_month",
+                     "annual_precipitation","driest_month","wettest_month")
 
 plot(env_pred)
 ```
