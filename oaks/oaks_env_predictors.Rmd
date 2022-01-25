@@ -145,3 +145,35 @@ rm(raw_clim)
 plot(clim, main="Climate")
 plot(arid, main="Aridity Index")
 ```
+
+
+## ENV PREDICTOR SELECTION
+
+```{r}
+# SELECTED LAYERS
+
+elev <- projectRaster(from = elev, to= arid, method='bilinear')
+meantemp <- projectRaster(from = meantemp, to= arid, method='bilinear')
+temp_season <- projectRaster(from=temp_season, to=arid, method="bilinear")
+
+env_pred <- stack(elev, arid, meantemp, temp_season)
+names(env_pred) <- c("elevation","aridity","mean_temp","temp_seasonality")
+
+plot(env_pred)
+```
+
+
+```{r}
+# Save stack
+
+# path for env variables masked raster stack 
+env_stack_grd <- file.path(here(), 
+                           "oaks",
+                           "env_layers",
+                           "sb_env_stack.grd")
+
+if (!file.exists(env_stack_grd)){
+  writeRaster(env_pred, env_stack_grd, overwrite=T)  
+}
+rm(env_stack_grd)
+```
