@@ -6,8 +6,40 @@ output: html_document
 ```{r}
 library(raster)
 library(rgdal)
-library(sf)
+library(sf) # https://github.com/rstudio/cheatsheets/blob/main/sf.pdf
 library(here)
 library(tidyverse)
+```
+
+```{r}
+presence <- sf::read_sf(here("oaks","oaks_data","oaks_sample.geojson"))  
+absence <- sf::read_sf(here("oaks","oaks_data","oaks_absences.geojson"))  
+
+df_presence<- st_coordinates(presence) %>% 
+  as_data_frame() %>% 
+  mutate(presence=1) 
+
+df_absence<- st_coordinates(absence) %>% 
+  as_data_frame() %>% 
+  mutate(presence=0)
+
+pres_abs <- bind_rows(df_absence,df_presence) %>% 
+  mutate(ID = 1:n()) %>% 
+  relocate(ID)
+
+rm(presence, absence, df_absence,df_presence)
+```
+
+
+```{r}
+ # extract raster values for points
+
+env_stack <- raster::stack(here("oaks","env_layers","sb_env_stack.grd"))
+
+env_info <- raster::extract(env_stack, 
+                            pres_abs %>% select(X,Y), 
+                            df=TRUE)
+oaks <- left_join(pres_abs,env_info, by="ID") %>% 
+    relocate(presence, .after = ID)
 ```
 
