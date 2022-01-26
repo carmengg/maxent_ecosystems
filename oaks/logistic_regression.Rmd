@@ -89,3 +89,29 @@ matrix(
 ```
 
 
+```{r}
+results_blr <- log_model %>% 
+  broom::augment(type.predict="response") %>% # calculate probability for each outcome
+  select(presence,.fitted)
+
+results_blr2 <-
+  dismo::predict(log_model,type="response") %>% 
+  as_data_frame() %>% 
+  mutate(ID = 1:n())
+
+
+results <- predict(log_model, pts_test,type="response") %>% 
+  as_data_frame() %>% 
+  mutate(ID = 1:n()) %>% 
+  left_join(pts_test %>% mutate(ID = 1:n())) %>% 
+  select(presence,value)
+
+table <- results %>% 
+  mutate(classification = case_when( value>thr & presence==1~ "True",   
+                                     value<=thr & presence==1~ "False",
+                                     value>thr & presence==0~ "False",
+                                     value<=thr & presence==0~ "True")) %>% 
+  count(presence, classification)
+```
+
+
