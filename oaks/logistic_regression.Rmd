@@ -1,0 +1,91 @@
+---
+title: "logistic_regression"
+output: html_document
+---
+
+```{r}
+library(here)
+library(tidyverse)
+```
+
+
+```{r}
+# --- CREATE TRAINING-TEST DATA ---
+
+oaks_data <- read_csv(here("oaks","oaks_data","oaks_pres_abs_env.csv")) %>% 
+  select(!driest_month)
+
+# create training set with 80% of full data
+pts_split  <- rsample::initial_split(oaks_data, 
+                                     prop = 0.8, 
+                                     strata = "presence")
+pts_train  <- rsample::training(pts_split)
+pts_test   <- rsample::testing(pts_split)
+
+```
+
+
+```{r}
+# --- create model ---
+log_model <- glm(presence ~ elevation + aridity + 
+                  temp_seasonality + mean_temp + coldest_month + warmest_month +
+                  annual_precipitation + wettest_month,
+                data = pts_train,
+                family = binomial(link="logit")) 
+```
+
+```{r}
+# --- PLOT PREDICTION ---
+env_stack <- raster::stack(here("oaks","env_layers","sb_env_stack.grd")) %>% 
+  dropLayer("driest_month")
+
+glm_prediction <- raster::predict(env_stack, log_oaks)
+plot(glm_prediction, main='GLM prediction')
+```
+
+```{r}
+test_presence <- pts_test %>% 
+  filter(presence == 1) %>% 
+  select(X,Y)
+test_absence <- pts_test %>% 
+  filter(presence == 0) %>% 
+  select(X,Y)
+
+e <- dismo::evaluate(
+  p     = test_presence,
+  a     = test_absence, 
+  model = log_model,
+  x     = env_stack)
+e
+```
+```{r}
+plot(e, 'ROC')
+
+thr <- threshold(e)[['spec_sens']]
+# the threshold at which the sum of the sensitivity (true positive rate) and specificity (true negative rate) is highest
+thr
+```
+
+```{r}
+
+p_true <- na.omit(raster::extract(glm_prediction, test_presence) >= thr)
+tpr <- sum(p_true)/length(p_true)  # % true positive
+fnr <- sum(!p_true)/length(p_true) # % false negative 
+
+a_true <- na.omit(raster::extract(glm_prediction, test_absence) < thr)
+fpr <- sum(!a_true)/length(a_true) # % false negative
+tnr <- sum(a_true)/length(a_true) # % true negative
+
+
+
+matrix(
+  c(tpr, fpr,
+    fnr, tnr), 
+  nrow=2, 
+  byrow= TRUE, 
+  dimnames = list(
+    c("present_obs", "absent_obs"),
+    c("present_pred", "absent_pred")))
+```
+
+
