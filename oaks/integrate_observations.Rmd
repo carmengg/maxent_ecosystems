@@ -50,10 +50,6 @@ oaks <- left_join(pres_abs,env_info, by="ID") %>%
     relocate(presence) %>% 
   select(!ID)
 
-write_csv(oaks, here("oaks","oaks_data","oaks_pres_abs_env.csv"))
-```
-
-```{r}
-
+#write_csv(oaks, here("oaks","oaks_data","oaks_pres_abs_env.csv"))
 ```
 
