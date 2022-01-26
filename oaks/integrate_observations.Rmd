@@ -13,8 +13,17 @@ library(tidyverse)
 
 ```{r}
 presence <- sf::read_sf(here("oaks","oaks_data","oaks_sample.geojson"))  
-absence <- sf::read_sf(here("oaks","oaks_data","oaks_absences.geojson"))  
+absence <- sf::read_sf(here("oaks","oaks_data","oaks_absences.geojson")) 
 
+env_stack <- raster::stack(here("oaks","env_layers","sb_env_stack.grd"))
+
+# match all CRS
+presence <- st_transform(presence,crs(env_stack))
+absence <- st_transform(absence, crs(env_stack))
+```
+
+
+```{r}
 df_presence<- st_coordinates(presence) %>% 
   as_data_frame() %>% 
   mutate(presence=1) 
@@ -33,13 +42,17 @@ rm(presence, absence, df_absence,df_presence)
 
 ```{r}
  # extract raster values for points
-
-env_stack <- raster::stack(here("oaks","env_layers","sb_env_stack.grd"))
-
 env_info <- raster::extract(env_stack, 
                             pres_abs %>% select(X,Y), 
                             df=TRUE)
+
 oaks <- left_join(pres_abs,env_info, by="ID") %>% 
-    relocate(presence, .after = ID)
+    relocate(presence) %>% 
+  select(!ID)
+  
+```
+
+```{r}
+
 ```
 
