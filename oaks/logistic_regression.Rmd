@@ -6,11 +6,12 @@ output: html_document
 ```{r}
 library(here)
 library(tidyverse)
+set.seed(21)
 ```
 
 
 ```{r}
-# --- CREATE TRAINING-TEST DATA ---
+# --- CREATE TRAINING/TEST DATA ---
 
 oaks_data <- read_csv(here("oaks","oaks_data","oaks_pres_abs_env.csv")) %>% 
   select(!driest_month)
@@ -21,29 +22,15 @@ pts_split  <- rsample::initial_split(oaks_data,
                                      strata = "presence")
 pts_train  <- rsample::training(pts_split)
 pts_test   <- rsample::testing(pts_split)
+rm(pts_split,oaks_data)
+colnames(pts_train)
 
 ```
 
 
 ```{r}
-# --- create model ---
-log_model <- glm(presence ~ elevation + aridity + 
-                  temp_seasonality + mean_temp + coldest_month + warmest_month +
-                  annual_precipitation + wettest_month,
-                data = pts_train,
-                family = binomial(link="logit")) 
-```
+# Split train/test into presence/absence and only keep coordinates
 
-```{r}
-# --- PLOT PREDICTION ---
-env_stack <- raster::stack(here("oaks","env_layers","sb_env_stack.grd")) %>% 
-  dropLayer("driest_month")
-
-glm_prediction <- raster::predict(env_stack, log_oaks)
-plot(glm_prediction, main='GLM prediction')
-```
-
-```{r}
 test_presence <- pts_test %>% 
   filter(presence == 1) %>% 
   select(X,Y)
@@ -51,36 +38,117 @@ test_absence <- pts_test %>%
   filter(presence == 0) %>% 
   select(X,Y)
 
-e <- dismo::evaluate(
+train_presence <- pts_train %>% 
+  filter(presence == 1) %>% 
+  select(X,Y)
+train_absence <- pts_train %>% 
+  filter(presence == 0) %>% 
+  select(X,Y)
+```
+
+
+```{r}
+# --- CREATE LOG MODEL (without coordinates as covariates) ---
+log_model <- glm(presence ~ elevation + aridity + 
+                  temp_seasonality + mean_temp + coldest_month + warmest_month +
+                  annual_precipitation + wettest_month,
+                data = pts_train,
+                family = binomial(link="logit")) 
+
+broom::tidy(log_model)
+```
+
+```{r}
+# --- PROBABILITIES : evaluate model at every point in raster  ---
+env_stack <- raster::stack(here("oaks","env_layers","sb_env_stack.grd")) %>% 
+  dropLayer("driest_month")
+
+glm_prediction_raster <- raster::predict(env_stack, log_model, type="response")
+plot(glm_prediction_raster, main='GLM prediction')
+```
+
+```{r}
+# --- PROBABILITIES : evaluate model at test points ---
+
+# METHOD 1: extract from raster (lines 1-3)
+# we only need the coordinates of the test points (test_presence)
+test_probabilities_1 <-raster::extract(glm_prediction_raster,          # 1)
+                                       pts_test %>% select(X,Y)) %>%   # 2)
+  as_data_frame() %>%                                                  # 3)
+  mutate(ID = 1:n()) %>%     # This is just to recover the presence/absence tag
+  left_join(pts_test %>% mutate(ID = 1:n())) %>% 
+  select(presence,value)
+
+
+# METHOD 2: evaluate directly in model (lines 1-4)
+# we need the covariates value at each point (pts_test)
+test_probabilities_2 <- predict(log_model, 
+                   pts_test, 
+                   type="response") %>% 
+  as_data_frame() %>% 
+  mutate(ID = 1:n()) %>% 
+  left_join(pts_test %>% mutate(ID = 1:n())) %>% 
+  select(presence,value)
+
+```
+
+```{r}
+# Receiver Operator Characteristic graph (ROC)
+
+ROCRpred <- ROCR::prediction(test_probabilities_1$value,test_probabilities_1$presence)
+ROCRperf = performance(ROCRpred, "tpr", "fpr")
+
+plot(ROCRperf, 
+     colorize=TRUE, 
+     print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
+lines(c(0,1),c(0,1))
+```
+
+
+
+```{r}
+e_train <- dismo::evaluate(
+  p     = train_presence,
+  a     = train_absence, 
+  model = log_model,
+  x     = env_stack)
+
+e_test <- dismo::evaluate(
   p     = test_presence,
   a     = test_absence, 
   model = log_model,
   x     = env_stack)
-e
+
+e_train
+e_test
+
 ```
+
 ```{r}
-plot(e, 'ROC')
+#plot(e, 'ROC')
 
 thr <- threshold(e)[['spec_sens']]
 # the threshold at which the sum of the sensitivity (true positive rate) and specificity (true negative rate) is highest
 thr
 ```
 
+
+
 ```{r}
+thr<-0.213681
+p_true <- na.omit(raster::extract(glm_prediction_raster, test_presence) >= thr)
+true_pos <- sum(p_true)/length(p_true)  # % true positive
+false_neg <- sum(!p_true)/length(p_true) # % false negative 
 
-p_true <- na.omit(raster::extract(glm_prediction, test_presence) >= thr)
-tpr <- sum(p_true)/length(p_true)  # % true positive
-fnr <- sum(!p_true)/length(p_true) # % false negative 
-
-a_true <- na.omit(raster::extract(glm_prediction, test_absence) < thr)
-fpr <- sum(!a_true)/length(a_true) # % false negative
-tnr <- sum(a_true)/length(a_true) # % true negative
+a_true <- na.omit(raster::extract(glm_prediction_raster, test_absence) < thr)
+true_neg <- sum(a_true)/length(a_true) # % true negative
+false_pos <- sum(!a_true)/length(a_true) # % false positive
 
 
 
 matrix(
-  c(tpr, fpr,
-    fnr, tnr), 
+  c(true_pos, false_pos,
+    false_neg, true_neg), 
   nrow=2, 
   byrow= TRUE, 
   dimnames = list(
@@ -90,17 +158,17 @@ matrix(
 
 
 ```{r}
-results_blr <- log_model %>% 
-  broom::augment(type.predict="response") %>% # calculate probability for each outcome
-  select(presence,.fitted)
+# results_blr <- log_model %>% 
+#   broom::augment(type.predict="response") %>% # calculate probability for each outcome
+#   select(presence,.fitted)
 
-results_blr2 <-
+results_blr <-
   dismo::predict(log_model,type="response") %>% 
   as_data_frame() %>% 
   mutate(ID = 1:n())
 
 
-results <- predict(log_model, pts_test,type="response") %>% 
+results <- predict(log_model, pts_test, type="response") %>% 
   as_data_frame() %>% 
   mutate(ID = 1:n()) %>% 
   left_join(pts_test %>% mutate(ID = 1:n())) %>% 
@@ -112,6 +180,8 @@ table <- results %>%
                                      value>thr & presence==0~ "False",
                                      value<=thr & presence==0~ "True")) %>% 
   count(presence, classification)
+
+table
 ```
 
 
