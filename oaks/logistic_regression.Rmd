@@ -63,7 +63,10 @@ broom::tidy(log_model)
 env_stack <- raster::stack(here("oaks","env_layers","sb_env_stack.grd")) %>% 
   dropLayer("driest_month")
 
-glm_prediction_raster <- raster::predict(env_stack, log_model, type="response")
+glm_prediction_raster <- raster::predict(env_stack, 
+                                         log_model, 
+                                         type="response")
+
 plot(glm_prediction_raster, main='GLM prediction')
 ```
 
@@ -92,11 +95,16 @@ test_probabilities_2 <- predict(log_model,
 
 ```
 
+## THRESHOLD SELECTION
+
 ```{r}
 # Receiver Operator Characteristic graph (ROC)
 
-ROCRpred <- ROCR::prediction(test_probabilities_1$value,test_probabilities_1$presence)
+ROCRpred <- ROCR::prediction(test_probabilities_1$value,
+                             test_probabilities_1$presence)
 ROCRperf = performance(ROCRpred, "tpr", "fpr")
+
+# https://medium.com/analytics-vidhya/a-guide-to-machine-learning-in-r-for-beginners-part-5-4c00f2366b90
 
 plot(ROCRperf, 
      colorize=TRUE, 
@@ -107,27 +115,18 @@ lines(c(0,1),c(0,1))
 
 
 ```{r}
-e_train <- dismo::evaluate(
-  p     = train_presence,
-  a     = train_absence, 
-  model = log_model,
-  x     = env_stack)
-
 e_test <- dismo::evaluate(
   p     = test_presence,
   a     = test_absence, 
   model = log_model,
   x     = env_stack)
 
-e_train
 e_test
-
+plot(e_test,'ROC')
 ```
 
 ```{r}
-#plot(e, 'ROC')
-
-thr <- threshold(e)[['spec_sens']]
+thr <- threshold(e_test)[['spec_sens']]
 # the threshold at which the sum of the sensitivity (true positive rate) and specificity (true negative rate) is highest
 thr
 ```
@@ -135,7 +134,7 @@ thr
 
 
 ```{r}
-thr<-0.213681
+#thr<-0.213681
 p_true <- na.omit(raster::extract(glm_prediction_raster, test_presence) >= thr)
 true_pos <- sum(p_true)/length(p_true)  # % true positive
 false_neg <- sum(!p_true)/length(p_true) # % false negative 
