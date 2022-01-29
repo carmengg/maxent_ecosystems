@@ -27,32 +27,50 @@ plot(env_stack)
 # Load oak woodlands presence points
 
 ```{r}
-#obs <- sf::read_sf(here("maxent_eco_classification","oak_samples","oaks_sample.geojson"))
-presence <- sf::read_sf(here("oaks","oaks_data","oaks_sample.geojson"))
-presence <- st_transform(presence,crs(env_stack))
-
-# p = presence
-p_pts_split  <- rsample::initial_split(presence, prop = 0.8)
-p_pts_train  <- rsample::training(p_pts_split)
-p_pts_test   <- rsample::testing(p_pts_split)
-rm(p_pts_split)
+# #obs <- sf::read_sf(here("maxent_eco_classification","oak_samples","oaks_sample.geojson"))
+# presence <- sf::read_sf(here("oaks","oaks_data","oaks_sample.geojson"))
+# presence <- st_transform(presence,crs(env_stack))
+# 
+# # p = presence
+# p_pts_split  <- rsample::initial_split(presence, prop = 0.8)
+# p_pts_train  <- rsample::training(p_pts_split)
+# p_pts_test   <- rsample::testing(p_pts_split)
+# rm(p_pts_split)
 
 ```
 
 # Load oak woodlands absence points
 
 ```{r}
-#obs <- sf::read_sf(here("maxent_eco_classification","oak_samples","oaks_sample.geojson"))
-absence <- sf::read_sf(here("oaks","oaks_data","oaks_absences.geojson"))
-absence <- st_transform(absence,crs(env_stack))
-
-# a = presence
-a_pts_split  <- rsample::initial_split(absence, prop = 0.8)
-a_pts_train  <- rsample::training(a_pts_split)
-a_pts_test   <- rsample::testing(a_pts_split)
-rm(a_pts_split)
+# #obs <- sf::read_sf(here("maxent_eco_classification","oak_samples","oaks_sample.geojson"))
+# absence <- sf::read_sf(here("oaks","oaks_data","oaks_absences.geojson"))
+# absence <- st_transform(absence,crs(env_stack))
+# 
+# # a = presence
+# a_pts_split  <- rsample::initial_split(absence, prop = 0.8)
+# a_pts_train  <- rsample::training(a_pts_split)
+# a_pts_test   <- rsample::testing(a_pts_split)
+# rm(a_pts_split)
 
 ```
+
+
+# Load train set
+```{r}
+train <- read_csv(here("oaks","oaks_data","oaks_train.csv"))
+test <- read_csv(here("oaks","oaks_data","oaks_test.csv"))
+
+p_pts_train <- train %>% 
+  filter(presence==1) %>% 
+  select(X,Y) %>% 
+  sf::st_as_sf(coords=c("X","Y"))
+
+a_pts_train <- train %>% 
+  filter(presence==0) %>% 
+  select(X,Y) %>% 
+  sf::st_as_sf(coords=c("X","Y"))
+```
+
 
 # Run Maxent model
 
@@ -69,6 +87,21 @@ y_maxv <- predict(env_stack, maxent_model) #, ext=ext, progress='')
 plot(y_maxv, main='Maxent prediction')
 
 ```
+
+# Load test set
+
+```{r}
+test <- read_csv(here("oaks","oaks_data","oaks_test.csv"))
+
+p_pts_test <- test %>% 
+  filter(presence==1) %>% 
+  select(X,Y)
+
+a_pts_test <- test %>% 
+  filter(presence==0) %>% 
+  select(X,Y) 
+```
+
 
 ```{r}
 
@@ -90,13 +123,11 @@ thr
 
 
 ```{r}
-thresh <- thr
-
-p_true <- na.omit(raster::extract(y_maxv, p_pts_test) >= thresh)
+p_true <- na.omit(raster::extract(y_maxv, p_pts_test) >= thr)
 tpr <- sum(p_true)/length(p_true)  # % true positive
 fnr <- sum(!p_true)/length(p_true) # % false negative 
 
-a_true <- na.omit(raster::extract(y_maxv, a_pts_test) < thresh)
+a_true <- na.omit(raster::extract(y_maxv, a_pts_test) < thr)
 fpr <- sum(!a_true)/length(a_true) # % false negative
 tnr <- sum(a_true)/length(a_true) # % true negative
 
