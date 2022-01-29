@@ -13,19 +13,29 @@ set.seed(21)
 ```{r}
 # --- CREATE TRAINING/TEST DATA ---
 
-oaks_data <- read_csv(here("oaks","oaks_data","oaks_pres_abs_env.csv")) %>% 
-  select(!driest_month)
+# oaks_data <- read_csv(here("oaks","oaks_data","oaks_pres_abs_env.csv")) %>% 
+#   select(!driest_month)
+# 
+# # create training set with 80% of full data
+# pts_split  <- rsample::initial_split(oaks_data, 
+#                                      prop = 0.8, 
+#                                      strata = "presence")
+# pts_train  <- rsample::training(pts_split)
+# pts_test   <- rsample::testing(pts_split)
+# rm(pts_split,oaks_data)
+# colnames(pts_train)
 
-# create training set with 80% of full data
-pts_split  <- rsample::initial_split(oaks_data, 
-                                     prop = 0.8, 
-                                     strata = "presence")
-pts_train  <- rsample::training(pts_split)
-pts_test   <- rsample::testing(pts_split)
-rm(pts_split,oaks_data)
-colnames(pts_train)
+#readr::write_csv(pts_train,here("oaks","oaks_data","oaks_train.csv"))
+#readr::write_csv(pts_test,here("oaks","oaks_data","oaks_test.csv"))
+
 
 ```
+
+```{r}
+pts_train<-read_csv(here("oaks","oaks_data","oaks_train.csv"))
+pts_test<-read_csv(here("oaks","oaks_data","oaks_test.csv"))
+```
+
 
 
 ```{r}
@@ -91,7 +101,8 @@ test_probabilities_2 <- predict(log_model,
   as_data_frame() %>% 
   mutate(ID = 1:n()) %>% 
   left_join(pts_test %>% mutate(ID = 1:n())) %>% 
-  select(presence,value)
+  select(presence,value) %>% 
+  filter(!is.na(value))
 
 ```
 
@@ -100,8 +111,8 @@ test_probabilities_2 <- predict(log_model,
 ```{r}
 # Receiver Operator Characteristic graph (ROC)
 
-ROCRpred <- ROCR::prediction(test_probabilities_1$value,
-                             test_probabilities_1$presence)
+ROCRpred <- ROCR::prediction(test_probabilities_2$value,
+                             test_probabilities_2$presence)
 ROCRperf = performance(ROCRpred, "tpr", "fpr")
 
 # https://medium.com/analytics-vidhya/a-guide-to-machine-learning-in-r-for-beginners-part-5-4c00f2366b90
@@ -134,7 +145,7 @@ thr
 
 
 ```{r}
-#thr<-0.213681
+thr<-0.34
 p_true <- na.omit(raster::extract(glm_prediction_raster, test_presence) >= thr)
 true_pos <- sum(p_true)/length(p_true)  # % true positive
 false_neg <- sum(!p_true)/length(p_true) # % false negative 
